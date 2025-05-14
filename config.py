@@ -77,3 +77,6 @@ def setup_directories():
             else:
                 shutil.rmtree(item)
     COMFYUI_INPUT_DIR.mkdir(exist_ok=True) # Ensure it exists
+
+def print_stage(title):
+    print("\n" + "="*10 + f" {title} " + "="*10)
