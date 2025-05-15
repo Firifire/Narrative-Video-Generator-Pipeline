@@ -149,3 +149,44 @@ def create_script():
         json.dump(scenes_data, f, indent=4)
     print(f"Parsed scene data saved to {parsed_script_path}")
     return scenes_data
+
+def create_img_prompts(scenes_data):
+    # --- 4. Storyboard Images ---
+    print_stage("4.0 Generating Storyboard Images...")
+
+    # IMPORTANT: Create this file in your COMFYUI_BASE_PATH / ComfyUI directory
+    # or adjust path. It's a JSON export of your ComfyUI graph in API format.
+    comfy_image_workflow_path = Path("comfyui_workflows/yt_txt3img.json") # Relative to this script
+
+    prompts_first = []
+
+    if not comfy_image_workflow_path.exists():
+        print(f"ComfyUI image workflow not found at {comfy_image_workflow_path}. Skipping image generation.")
+    else:
+        for i, scene in enumerate(scenes_data):
+            print(f"\nGenerating prompt {i+1}: {scene['heading']}")
+            
+            # Create more descriptive prompt for image generation from visual description
+            image_gen_prompt_enhancement = f"Based on the scene '{scene['heading']}' and visual description '{scene['visual_description']}', generate a detailed image prompt for a cinematic, high-quality visual. Focus on key elements, atmosphere, and art style (e.g., photorealistic, epic, mysterious, ancient)."
+            detailed_image_prompt = llm_generate(image_gen_prompt_enhancement, system_prompt="You are an AI assistant that creates vivid image generation prompts from scene descriptions.", temperature=0.5)
+
+            if not detailed_image_prompt:
+                detailed_image_prompt = scene['visual_description'] # Fallback
+
+            # Generate first frame
+            prompts_first.append({
+                "positive_prompt": f"{detailed_image_prompt}, first frame, establishing shot. cinematic lighting.",
+                "negative_prompt": "text, watermark, ugly, deformed, blur, low quality",
+                "seed": (i + 1) * 1000 # Consistent seed per scene start
+            })
+
+            # Optional: Generate last frame (could be similar or a variation)
+            # prompts_last = {
+            #     "positive_prompt": f"{detailed_image_prompt}, final frame of scene, sense of conclusion or transition. cinematic lighting.",
+            #     "negative_prompt": "text, watermark, ugly, deformed, blur, low quality",
+            #     "seed": (i + 1) * 1000 + 1 # Slightly different seed for variation
+            # }
+            
+            # Optional: Middle frame (if needed, could use interpolation concepts or just another prompt)
+            # scene["storyboard_middle"] = ...
+    return prompts_first

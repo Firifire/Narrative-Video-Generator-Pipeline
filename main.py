@@ -6,6 +6,7 @@ from pathlib import Path
 from config import *
 from generate import *
 from create_script import *
+from create_video import *
 
 
 def get_word_timestamps_from_audio(narration_audio_path, narration_text):
@@ -150,54 +151,11 @@ def main():
     create_channel()
     create_title()
     scenes_data = create_script()
+    prompts_first = create_img_prompts(scenes_data)
 
-    # --- 4. Storyboard Images ---
-    print_stage("4. Generating Storyboard Images...")
-    # This requires a ComfyUI workflow JSON that takes prompts and generates images.
-    # Let's assume 'comfyui_workflows/yt_txt3img.json' exists.
-    # You'll need to create this API workflow in ComfyUI first.
-    # It should have identifiable nodes for "Positive Prompt", "Negative Prompt", "KSampler" (for seed), "Empty Latent Image" (for size).
-    
-    # IMPORTANT: Create this file in your COMFYUI_BASE_PATH / ComfyUI directory
-    # or adjust path. It's a JSON export of your ComfyUI graph in API format.
-    comfy_image_workflow_path = Path("comfyui_workflows/yt_txt3img.json") # Relative to this script
+    subprocess.run(LLM_UNLOAD_CMD)
 
-    if not comfy_image_workflow_path.exists():
-        print(f"ComfyUI image workflow not found at {comfy_image_workflow_path}. Skipping image generation.")
-    else:
-        for i, scene in enumerate(scenes_data):
-            print(f"\nGenerating storyboard {i+1}: {scene['heading']}")
-            
-            # Create more descriptive prompt for image generation from visual description
-            image_gen_prompt_enhancement = f"Based on the scene '{scene['heading']}' and visual description '{scene['visual_description']}', generate a detailed image prompt for a cinematic, high-quality visual. Focus on key elements, atmosphere, and art style (e.g., photorealistic, epic, mysterious, ancient)."
-            detailed_image_prompt = llm_generate(image_gen_prompt_enhancement, system_prompt="You are an AI assistant that creates vivid image generation prompts from scene descriptions.", temperature=0.5)
-
-            if not detailed_image_prompt:
-                detailed_image_prompt = scene['visual_description'] # Fallback
-
-            # Generate first frame
-            prompts_first = {
-                "positive_prompt": f"{detailed_image_prompt}, first frame, establishing shot. cinematic lighting.",
-                "negative_prompt": "text, watermark, ugly, deformed, blur, low quality",
-                "seed": (i + 1) * 1000 # Consistent seed per scene start
-            }
-            scene["storyboard_first"] = generate_comfyui_image(comfy_image_workflow_path, prompts_first, f"scene_{i+1}_first", 0)
-
-            # Optional: Generate last frame (could be similar or a variation)
-            prompts_last = {
-                "positive_prompt": f"{detailed_image_prompt}, final frame of scene, sense of conclusion or transition. cinematic lighting.",
-                "negative_prompt": "text, watermark, ugly, deformed, blur, low quality",
-                "seed": (i + 1) * 1000 + 1 # Slightly different seed for variation
-            }
-            scene["storyboard_last"] = generate_comfyui_image(comfy_image_workflow_path, prompts_last, f"scene_{i+1}_last", 1)
-            
-            # Optional: Middle frame (if needed, could use interpolation concepts or just another prompt)
-            # scene["storyboard_middle"] = ...
-
-    updated_parsed_script_path = SCRIPTS_DIR / "05_scenes_with_storyboards.json"
-    with open(updated_parsed_script_path, "w", encoding="utf-8") as f:
-        json.dump(scenes_data, f, indent=4)
-    print(f"Scene data with storyboard paths saved to {updated_parsed_script_path}")
+    create_frames(scenes_data, prompts_first)
 
 
     # --- 5. Video Clips (LTX-Video via ComfyUI) ---
@@ -306,38 +264,38 @@ def main():
         json.dump(scenes_data, f, indent=4)
 
 
-    # --- 7. Sound Effects ---
-    print_stage("7. Generating Sound Effects...")
-    sfx_items_for_assembly = []
-    # This part requires knowing WHEN each SFX should play.
-    # The simple script parser above just lists cues per scene.
-    # A more advanced system would:
-    #   1. Have the LLM output SFX cues with approximate timing within the scene's narration.
-    #   2. Use the word timestamps from narration to calculate absolute SFX start times.
-    # For this script, we'll generate SFX but not accurately time them for assembly without more info.
+    # # --- 7. Sound Effects ---
+    # print_stage("7. Generating Sound Effects...")
+    # sfx_items_for_assembly = []
+    # # This part requires knowing WHEN each SFX should play.
+    # # The simple script parser above just lists cues per scene.
+    # # A more advanced system would:
+    # #   1. Have the LLM output SFX cues with approximate timing within the scene's narration.
+    # #   2. Use the word timestamps from narration to calculate absolute SFX start times.
+    # # For this script, we'll generate SFX but not accurately time them for assembly without more info.
     
-    sfx_time_offset_within_scene = 0 # Placeholder
-    for i, scene in enumerate(scenes_data):
-        scene_start_time_in_video = sum(video_durations[:i]) # Approximate scene start
+    # sfx_time_offset_within_scene = 0 # Placeholder
+    # for i, scene in enumerate(scenes_data):
+    #     scene_start_time_in_video = sum(video_durations[:i]) # Approximate scene start
 
-        for cue_index, sfx_cue in enumerate(scene.get("sfx_cues", [])):
-            if sfx_cue: # Ensure cue is not empty
-                sfx_filename = f"scene_{i+1}_sfx_{cue_index}_{sfx_cue.replace(' ','_')[:20]}.wav" # Sanitize
-                sfx_audio_path = generate_sfx_audio(sfx_cue, sfx_filename)
-                if sfx_audio_path:
-                    scene.setdefault("sfx_audio_paths", []).append(sfx_audio_path)
-                    # Placeholder timing: SFX starts a bit into the scene, or after previous SFX in same scene
-                    # THIS IS A MAJOR SIMPLIFICATION. Real timing needs to come from script or ASR alignment.
-                    approx_sfx_start_time = scene_start_time_in_video + sfx_time_offset_within_scene
-                    sfx_items_for_assembly.append({
-                        "audio_path": sfx_audio_path,
-                        "start_time": approx_sfx_start_time # Needs to be absolute time in final video
-                    })
-                    sfx_time_offset_within_scene += 3 # Assume SFX are ~3s and play sequentially for now
-        sfx_time_offset_within_scene = 0 # Reset for next scene
+    #     for cue_index, sfx_cue in enumerate(scene.get("sfx_cues", [])):
+    #         if sfx_cue: # Ensure cue is not empty
+    #             sfx_filename = f"scene_{i+1}_sfx_{cue_index}_{sfx_cue.replace(' ','_')[:20]}.wav" # Sanitize
+    #             sfx_audio_path = generate_sfx_audio(sfx_cue, sfx_filename)
+    #             if sfx_audio_path:
+    #                 scene.setdefault("sfx_audio_paths", []).append(sfx_audio_path)
+    #                 # Placeholder timing: SFX starts a bit into the scene, or after previous SFX in same scene
+    #                 # THIS IS A MAJOR SIMPLIFICATION. Real timing needs to come from script or ASR alignment.
+    #                 approx_sfx_start_time = scene_start_time_in_video + sfx_time_offset_within_scene
+    #                 sfx_items_for_assembly.append({
+    #                     "audio_path": sfx_audio_path,
+    #                     "start_time": approx_sfx_start_time # Needs to be absolute time in final video
+    #                 })
+    #                 sfx_time_offset_within_scene += 3 # Assume SFX are ~3s and play sequentially for now
+    #     sfx_time_offset_within_scene = 0 # Reset for next scene
 
-    with open(SCRIPTS_DIR / "09_scenes_with_sfx_audio.json", "w", encoding="utf-8") as f:
-        json.dump(scenes_data, f, indent=4)
+    # with open(SCRIPTS_DIR / "09_scenes_with_sfx_audio.json", "w", encoding="utf-8") as f:
+    #     json.dump(scenes_data, f, indent=4)
 
 
     # --- 8. Assembly (Video Editing) ---

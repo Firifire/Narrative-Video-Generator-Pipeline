@@ -16,6 +16,7 @@ FINAL_VIDEO_DIR = PROJECT_DIR / "final_video"
 # LLM Configuration (LM Studio)
 LM_STUDIO_SERVER_URL = "http://localhost:1234/v1" # Default LM Studio server
 LLM_MODEL_NAME = "gemma-3-4b-it"
+LLM_UNLOAD_CMD = ["lms", "unload", LLM_MODEL_NAME]
 
 # ComfyUI Configuration
 COMFYUI_BASE_PATH = Path("C:/Application/Apps") # Adjust if your ComfyUI is elsewhere

@@ -1,10 +1,10 @@
 {
   "6": {
     "inputs": {
-      "text": "A red fox moving gracefully, its russet coat vibrant against the white landscape, leaving perfect star-shaped prints behind as steam rises from its breath in the crisp winter air. The scene is wrapped in snow-muffled silence, broken only by the gentle murmur of water still flowing beneath the ice.",
+      "text": "cute anime girl with massive fluffy fennec ears and a big fluffy tail blonde messy long hair blue eyes wearing a maid outfit with a long black gold leaf pattern dress and a white apron mouth open holding a fancy black forest cake with candles on top in the kitchen of an old dark Victorian mansion lit by candlelight with a bright window to the foggy forest and very expensive stuff everywhere",
       "clip": [
-        "1915",
-        1
+        "11",
+        0
       ]
     },
     "class_type": "CLIPTextEncode",
@@ -12,77 +12,14 @@
       "title": "CLIP Text Encode (Positive Prompt)"
     }
   },
-  "7": {
-    "inputs": {
-      "text": "low quality, worst quality, deformed, distorted, disfigured, motion smear, motion artifacts, fused fingers, bad anatomy, weird hand, ugly",
-      "clip": [
-        "1915",
-        1
-      ]
-    },
-    "class_type": "CLIPTextEncode",
-    "_meta": {
-      "title": "CLIP Text Encode (Negative Prompt)"
-    }
-  },
-  "73": {
-    "inputs": {
-      "sampler_name": "euler"
-    },
-    "class_type": "KSamplerSelect",
-    "_meta": {
-      "title": "KSamplerSelect"
-    }
-  },
-  "1103": {
-    "inputs": {
-      "scheduler": "beta",
-      "steps": 30,
-      "denoise": 1,
-      "model": [
-        "1915",
-        0
-      ]
-    },
-    "class_type": "BasicScheduler",
-    "_meta": {
-      "title": "BasicScheduler"
-    }
-  },
-  "1206": {
-    "inputs": {
-      "image": "fox.jpg"
-    },
-    "class_type": "LoadImage",
-    "_meta": {
-      "title": "Load Image"
-    }
-  },
-  "1241": {
-    "inputs": {
-      "frame_rate": 24.000000000000004,
-      "positive": [
-        "6",
-        0
-      ],
-      "negative": [
-        "7",
-        0
-      ]
-    },
-    "class_type": "LTXVConditioning",
-    "_meta": {
-      "title": "LTXVConditioning"
-    }
-  },
-  "1335": {
+  "8": {
     "inputs": {
       "samples": [
-        "1338",
+        "13",
         0
       ],
       "vae": [
-        "1875",
+        "42",
         0
       ]
     },
@@ -91,141 +28,172 @@
       "title": "VAE Decode"
     }
   },
-  "1336": {
+  "9": {
     "inputs": {
-      "frame_rate": 24,
-      "loop_count": 0,
-      "filename_prefix": "ltxv-base",
-      "format": "video/nvenc_h264-mp4",
-      "pix_fmt": "yuv420p",
-      "bitrate": 10,
-      "megabit": true,
-      "save_metadata": true,
-      "pingpong": false,
-      "save_output": true,
+      "filename_prefix": "ComfyUI",
       "images": [
-        "1335",
+        "8",
         0
       ]
     },
-    "class_type": "VHS_VideoCombine",
+    "class_type": "SaveImage",
     "_meta": {
-      "title": "Video Combine 🎥🅥🅗🅢"
+      "title": "Save Image"
     }
   },
-  "1338": {
+  "10": {
     "inputs": {
-      "width": 768,
-      "height": 512,
-      "num_frames": 97,
-      "optional_cond_indices": "0",
-      "strength": 0.8,
-      "crop": "center",
-      "crf": 30,
-      "blur": 0,
-      "model": [
-        "1915",
-        0
-      ],
-      "vae": [
-        "1910",
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "11": {
+    "inputs": {
+      "clip_name1": "t5xxl_fp16.safetensors",
+      "clip_name2": "clip_l.safetensors",
+      "type": "flux",
+      "device": "default"
+    },
+    "class_type": "DualCLIPLoader",
+    "_meta": {
+      "title": "DualCLIPLoader"
+    }
+  },
+  "12": {
+    "inputs": {
+      "unet_name": "flux1-dev.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "13": {
+    "inputs": {
+      "noise": [
+        "25",
         0
       ],
       "guider": [
-        "1807",
+        "22",
         0
       ],
       "sampler": [
-        "73",
+        "16",
         0
       ],
       "sigmas": [
-        "1103",
+        "17",
         0
       ],
-      "noise": [
-        "1507",
-        0
-      ],
-      "optional_cond_images": [
-        "1206",
+      "latent_image": [
+        "27",
         0
       ]
     },
-    "class_type": "LTXVBaseSampler",
+    "class_type": "SamplerCustomAdvanced",
     "_meta": {
-      "title": "🅛🅣🅧 LTXV Base Sampler"
+      "title": "SamplerCustomAdvanced"
     }
   },
-  "1507": {
+  "16": {
     "inputs": {
-      "noise_seed": 109
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "17": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 20,
+      "denoise": 1,
+      "model": [
+        "30",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "22": {
+    "inputs": {
+      "model": [
+        "30",
+        0
+      ],
+      "conditioning": [
+        "26",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "BasicGuider"
+    }
+  },
+  "25": {
+    "inputs": {
+      "noise_seed": 1057548866700979
     },
     "class_type": "RandomNoise",
     "_meta": {
       "title": "RandomNoise"
     }
   },
-  "1807": {
+  "26": {
     "inputs": {
-      "skip_steps_sigma_threshold": 0.9970000000000002,
-      "cfg_star_rescale": true,
-      "sigmas": "1.0, 0.9933, 0.9850, 0.9767, 0.9008, 0.6180",
-      "cfg_values": "1,16,8,8,4,1",
-      "stg_scale_values": "0, 4, 4, 2, 1, 1",
-      "stg_rescale_values": "1, 1, 1, 1, 1, 1",
-      "stg_layers_indices": "[35], [35], [35], [42], [42], [42]",
+      "guidance": 3.5,
+      "conditioning": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "FluxGuidance",
+    "_meta": {
+      "title": "FluxGuidance"
+    }
+  },
+  "27": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "EmptySD3LatentImage"
+    }
+  },
+  "30": {
+    "inputs": {
+      "max_shift": 1.15,
+      "base_shift": 0.5,
+      "width": 1024,
+      "height": 1024,
       "model": [
-        "1915",
-        0
-      ],
-      "positive": [
-        "1241",
-        0
-      ],
-      "negative": [
-        "1241",
-        1
-      ],
-      "preset": [
-        "1809",
+        "41",
         0
       ]
     },
-    "class_type": "STGGuiderAdvanced",
+    "class_type": "ModelSamplingFlux",
     "_meta": {
-      "title": "🅛🅣🅧 STG Guider Advanced"
+      "title": "ModelSamplingFlux"
     }
   },
-  "1809": {
-    "inputs": {
-      "preset": "13b Dynamic"
-    },
-    "class_type": "STGAdvancedPresets",
-    "_meta": {
-      "title": "🅛🅣🅧 STG Advanced Presets"
-    }
-  },
-  "1875": {
-    "inputs": {
-      "timestep": 0.05,
-      "scale": 0.025,
-      "seed": 44731965495089,
-      "vae": [
-        "1910",
-        0
-      ]
-    },
-    "class_type": "Set VAE Decoder Noise",
-    "_meta": {
-      "title": "🅛🅣🅧 Set VAE Decoder Noise"
-    }
-  },
-  "1882": {
+  "38": {
     "inputs": {
       "sage_attention": "auto",
       "model": [
-        "1919",
+        "12",
         0
       ]
     },
@@ -234,124 +202,26 @@
       "title": "Patch Sage Attention KJ"
     }
   },
-  "1885": {
+  "39": {
     "inputs": {
-      "vae_name": "ltxv-13b-0.9.7-vae-BF16.safetensors"
-    },
-    "class_type": "VAELoader",
-    "_meta": {
-      "title": "Load VAE"
-    }
-  },
-  "1888": {
-    "inputs": {
-      "unet_name": "ltxv-13b-0.9.7-dev-Q8_0.gguf"
-    },
-    "class_type": "UnetLoaderGGUF",
-    "_meta": {
-      "title": "Unet Loader (GGUF)"
-    }
-  },
-  "1900": {
-    "inputs": {
-      "backend": "inductor",
-      "fullgraph": false,
-      "mode": "default",
-      "dynamic": false,
+      "enable_fp16_accumulation": true,
       "model": [
-        "1930",
+        "38",
         0
       ]
     },
-    "class_type": "TorchCompileLTXModel",
+    "class_type": "ModelPatchTorchSettings",
     "_meta": {
-      "title": "TorchCompileLTXModel"
+      "title": "Model Patch Torch Settings"
     }
   },
-  "1909": {
+  "40": {
     "inputs": {
-      "clip_name": "t5xxl_fp16.safetensors",
-      "type": "ltxv",
-      "device": "default"
-    },
-    "class_type": "ClipLoaderGGUF",
-    "_meta": {
-      "title": "GGUF CLIP Loader"
-    }
-  },
-  "1910": {
-    "inputs": {
-      "backend": "inductor",
-      "fullgraph": false,
-      "mode": "default",
-      "compile_encoder": true,
-      "compile_decoder": true,
-      "vae": [
-        "1885",
-        0
-      ]
-    },
-    "class_type": "TorchCompileVAE",
-    "_meta": {
-      "title": "TorchCompileVAE"
-    }
-  },
-  "1915": {
-    "inputs": {
-      "PowerLoraLoaderHeaderWidget": {
-        "type": "PowerLoraLoaderHeaderWidget"
-      },
-      "lora_1": {
-        "on": false,
-        "lora": "None",
-        "strength": 1
-      },
-      "➕ Add Lora": "",
-      "model": [
-        "1900",
-        0
-      ],
-      "clip": [
-        "1917",
-        0
-      ]
-    },
-    "class_type": "Power Lora Loader (rgthree)",
-    "_meta": {
-      "title": "Power Lora Loader (rgthree)"
-    }
-  },
-  "1917": {
-    "inputs": {
-      "any_01": [
-        "1909",
-        0
-      ]
-    },
-    "class_type": "Any Switch (rgthree)",
-    "_meta": {
-      "title": "Clip switch"
-    }
-  },
-  "1919": {
-    "inputs": {
-      "any_02": [
-        "1888",
-        0
-      ]
-    },
-    "class_type": "Any Switch (rgthree)",
-    "_meta": {
-      "title": "Model Switch"
-    }
-  },
-  "1930": {
-    "inputs": {
-      "model_type": "ltxv",
-      "rel_l1_thresh": 0.01,
+      "model_type": "flux",
+      "rel_l1_thresh": 0.4000000000000001,
       "max_skip_steps": 3,
       "model": [
-        "1936",
+        "39",
         0
       ]
     },
@@ -360,17 +230,34 @@
       "title": "TeaCache"
     }
   },
-  "1936": {
+  "41": {
     "inputs": {
-      "enable_fp16_accumulation": true,
+      "backend": "inductor",
       "model": [
-        "1882",
+        "40",
         0
       ]
     },
-    "class_type": "ModelPatchTorchSettings",
+    "class_type": "TorchCompileModel",
     "_meta": {
-      "title": "Model Patch Torch Settings"
+      "title": "TorchCompileModel"
+    }
+  },
+  "42": {
+    "inputs": {
+      "backend": "inductor",
+      "fullgraph": false,
+      "mode": "default",
+      "compile_encoder": true,
+      "compile_decoder": true,
+      "vae": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "TorchCompileVAE",
+    "_meta": {
+      "title": "TorchCompileVAE"
     }
   }
 }

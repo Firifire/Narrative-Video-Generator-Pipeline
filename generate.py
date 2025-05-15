@@ -24,91 +24,174 @@ def llm_generate(prompt, system_prompt="You are a helpful AI assistant.", temper
         print(f"LLM generation failed: {e}")
         return None
 
+import requests
+import websocket # type: ignore
+import uuid
+import json
+import time
+import os
+import shutil # Retained for potential use if saving directly from a shared volume, but direct download is preferred.
+from pathlib import Path # Assuming Path is used for STORYBOARD_DIR
+import urllib.parse
+
+# These global variables are assumed to be defined elsewhere in your script,
+# as per your original code structure.
+# If they are dynamic, consider passing them as arguments or including them in input_prompts.
+# IMAGE_WIDTH = 512
+# IMAGE_HEIGHT = 512
+# IMAGE_STEPS = 20
+# IMAGE_CFG = 7.0
+# IMAGE_SAMPLER = "euler"
+# IMAGE_SCHEDULER = "normal"
+# STORYBOARD_DIR = Path("path/to/your/storyboard_dir") # Example: Initialize with your actual path
+
 def generate_comfyui_image(workflow_api_json_path, input_prompts, output_prefix, iteration):
     """
-    Triggers a ComfyUI workflow to generate an image.
+    Triggers a ComfyUI workflow to generate an image and downloads it.
     Assumes workflow_api_json_path is a ComfyUI API format JSON.
     Input_prompts is a dictionary to update specific nodes in the workflow.
     """
-    import requests
-    import uuid
-    import websocket
-    import urllib.parse
-    import time
-
-    server_address = "127.0.0.1:8000" # Default ComfyUI server
+    server_address = "127.0.0.1:8000" # As specified in your initial script
     client_id = str(uuid.uuid4())
 
     try:
         with open(workflow_api_json_path, 'r') as f:
             prompt_workflow = json.load(f)
 
-        # Modify the workflow with new prompts
-        # This is highly dependent on your specific ComfyUI workflow structure
-        # Example: Assuming you have nodes with titles like "Positive Prompt" and "Negative Prompt"
-        # And potentially a "Load Image" node for ControlNet reference
+        # Modify the workflow with new prompts and parameters [1, 3]
+        # This section is largely from your original script.
+        # Ensure node titles like "Positive Prompt", "KSampler", etc., match your workflow.
         for node_id, node_data in prompt_workflow.items():
-            if node_data.get("_meta", {}).get("title") == "Positive Prompt":
+            meta_title = node_data.get("_meta", {}).get("title")
+            if meta_title == "CLIP Text Encode (Positive Prompt)":
                 prompt_workflow[node_id]["inputs"]["text"] = input_prompts.get("positive_prompt", "")
-            if node_data.get("_meta", {}).get("title") == "Negative Prompt":
+            elif meta_title == "Negative Prompt":
                 prompt_workflow[node_id]["inputs"]["text"] = input_prompts.get("negative_prompt", "ugly, bad anatomy")
-            if node_data.get("_meta", {}).get("title") == "Empty Latent Image": # Common for image size
-                 prompt_workflow[node_id]["inputs"]["width"] = IMAGE_WIDTH
-                 prompt_workflow[node_id]["inputs"]["height"] = IMAGE_HEIGHT
-            if node_data.get("_meta", {}).get("title") == "KSampler": # Common for sampler settings
-                prompt_workflow[node_id]["inputs"]["steps"] = IMAGE_STEPS
-                prompt_workflow[node_id]["inputs"]["cfg"] = IMAGE_CFG
-                prompt_workflow[node_id]["inputs"]["sampler_name"] = IMAGE_SAMPLER
-                prompt_workflow[node_id]["inputs"]["scheduler"] = IMAGE_SCHEDULER
-                prompt_workflow[node_id]["inputs"]["seed"] = input_prompts.get("seed", 12345) # Use a consistent seed for consistency
-            # Add more modifications for ControlNet nodes if used (e.g., loading reference image)
+            # elif meta_title == "Empty Latent Image": # Common for image size
+            #     # Assuming IMAGE_WIDTH and IMAGE_HEIGHT are globally defined or passed via input_prompts
+            #     if "IMAGE_WIDTH" in globals() and "IMAGE_HEIGHT" in globals():
+            #         prompt_workflow[node_id]["inputs"]["width"] = IMAGE_WIDTH
+            #         prompt_workflow[node_id]["inputs"]["height"] = IMAGE_HEIGHT
+            elif meta_title == "KSampler": # Common for sampler settings
+                # Assuming these are globally defined or passed via input_prompts
+                if "IMAGE_STEPS" in globals():
+                    prompt_workflow[node_id]["inputs"]["steps"] = IMAGE_STEPS
+                if "IMAGE_CFG" in globals():
+                    prompt_workflow[node_id]["inputs"]["cfg"] = IMAGE_CFG
+                if "IMAGE_SAMPLER" in globals():
+                    prompt_workflow[node_id]["inputs"]["sampler_name"] = IMAGE_SAMPLER
+                if "IMAGE_SCHEDULER" in globals():
+                    prompt_workflow[node_id]["inputs"]["scheduler"] = IMAGE_SCHEDULER
+                prompt_workflow[node_id]["inputs"]["seed"] = input_prompts.get("seed", int(time.time())) # Use provided seed or a new one
 
+        # Step 1: Queue the prompt using HTTP POST to /prompt [1, 2]
+        http_server_address = f"http://{server_address}"
+        prompt_payload = {"prompt": prompt_workflow, "client_id": client_id}
+        
+        print(f"Queueing prompt for {output_prefix}_{iteration} with client_id: {client_id}")
+        response = requests.post(f"{http_server_address}/prompt", json=prompt_payload)
+        response.raise_for_status()
+        prompt_response_data = response.json()
+
+        if "error" in prompt_response_data:
+            node_errors = prompt_response_data.get("node_errors", {})
+            error_messages = [f"Node {ne_id}: {ne_details.get('errors', [{}]).get('message', 'Unknown error')}" for ne_id, ne_details in node_errors.items()]
+            print(f"ComfyUI error when queueing prompt: {prompt_response_data['error']}. Details: {'; '.join(error_messages)}")
+            return None
+            
+        prompt_id = prompt_response_data.get("prompt_id")
+        if not prompt_id:
+            print(f"Failed to get prompt_id from ComfyUI for {output_prefix}_{iteration}. Response: {prompt_response_data}")
+            return None
+        
+        print(f"Prompt queued successfully. Prompt ID: {prompt_id}")
+
+        # Step 2: Connect to WebSocket for status updates [1, 2]
+        ws_server_address = f"ws://{server_address}/ws?clientId={client_id}"
         ws = websocket.WebSocket()
-        ws.connect(f"ws://{server_address}/ws?clientId={client_id}")
+        ws.connect(ws_server_address)
+        print(f"WebSocket connected for {output_prefix}_{iteration}")
 
-        payload = {"prompt": prompt_workflow, "client_id": client_id}
-        ws.send(json.dumps(payload))
-
-        print(f"Sent image generation request to ComfyUI for {output_prefix}_{iteration}")
+        image_downloaded = False
+        output_image_path = None
 
         while True:
             out = ws.recv()
             if isinstance(out, str):
                 message = json.loads(out)
-                if message['type'] == 'executing':
-                    data = message['data']
-                    if data['node'] is None and data['prompt_id'] == payload['prompt_id']:
-                        break #Execution is done
-                elif message['type'] == 'executed' and message['data']['node_id'] in prompt_workflow: # Assuming last node is save/preview
-                    # This part is tricky as it depends on how your workflow outputs images
-                    # We'll assume images are saved in ComfyUI's output directory
-                    # and try to find the latest one. A more robust way is to have a specific "SaveImage" node
-                    # and get its output filename from the 'executed' message.
-                    time.sleep(2) # Give time for file to be written
-                    break
-            else:
-                # Binary message, potentially image data if your workflow sends it via websocket.
-                # For simplicity, we'll rely on finding it in the output folder.
-                pass
-        ws.close()
+                # print(f"WS Message: {message}") # For debugging
+                if message.get("type") == "executing":
+                    data = message.get("data", {})
+                    if data.get("node") is None and data.get("prompt_id") == prompt_id:
+                        print(f"Execution started for prompt_id: {prompt_id}")
+                
+                elif message.get("type") == "executed" and message.get("data", {}).get("prompt_id") == prompt_id:
+                    data = message.get("data", {})
+                    outputs = data.get("output", {})
+                    if not outputs:
+                        continue
+                    print(f"Execution finished for prompt_id: {prompt_id}. Outputs received.")
+                    
+                    # Step 3: Retrieve image(s) from outputs [1, 2]
+                    for node_id_output, node_output_data in outputs.items():
+                        if "images" in node_id_output:
+                            for image_data in node_output_data:
+                                filename = image_data.get("filename")
+                                subfolder = image_data.get("subfolder", "")
+                                img_type = image_data.get("type", "output")
 
-        # Find the generated image (this is a heuristic)
-        # A better way is to use a "Save Image" node in ComfyUI that provides the filename.
-        # Or use the ComfyUI API to fetch the image if the workflow returns it directly.
-        generated_files = sorted(COMFYUI_OUTPUT_DIR.glob(f"ComfyUI_*.png"), key=os.path.getmtime, reverse=True)
-        if generated_files:
-            latest_file = generated_files[0]
-            output_path = STORYBOARD_DIR / f"{output_prefix}_{iteration}.png"
-            shutil.copy(latest_file, output_path)
-            print(f"Image saved to {output_path}")
-            return str(output_path)
-        else:
-            print(f"Could not find generated image for {output_prefix}_{iteration} in {COMFYUI_OUTPUT_DIR}")
-            return None
+                                if not filename:
+                                    continue
 
+                                # Download the image using /view endpoint [1, 2]
+                                view_url = f"{http_server_address}/view?filename={urllib.parse.quote(filename)}&subfolder={urllib.parse.quote(subfolder)}&type={img_type}"
+                                print(f"Downloading image: {filename} from {view_url}")
+                                
+                                img_response = requests.get(view_url)
+                                img_response.raise_for_status()
+
+                                # Ensure STORYBOARD_DIR exists (assuming it's a Path object)
+                                if not STORYBOARD_DIR.exists():
+                                    STORYBOARD_DIR.mkdir(parents=True, exist_ok=True)
+                                
+                                output_path_obj = STORYBOARD_DIR / f"{output_prefix}_{iteration}.png"
+                                with open(output_path_obj, 'wb') as f_img:
+                                    f_img.write(img_response.content)
+                                
+                                print(f"Image saved to {output_path_obj}")
+                                output_image_path = str(output_path_obj)
+                                image_downloaded = True
+                                break # Downloaded one image, exit loop
+                        if image_downloaded:
+                            break
+                    ws.close()
+                    return output_image_path # Return path of the first successfully downloaded image
+
+                elif message.get("type") == "execution_error" and message.get("data", {}).get("prompt_id") == prompt_id:
+                    error_data = message.get("data", {})
+                    print(f"Execution error for prompt_id {prompt_id}: {error_data}")
+                    ws.close()
+                    exit()
+            # Binary messages are usually previews, not handled in this simplified version
+            # focused on final output via /view like the original script's intent.
+
+    except requests.exceptions.RequestException as e:
+        print(f"ComfyUI HTTP request failed for {output_prefix}_{iteration}: {e}")
+        print(f"Response: {response.text if 'response' in locals() else 'No response'}")
+        exit()
+    except websocket.WebSocketException as e:
+        print(f"ComfyUI WebSocket communication failed for {output_prefix}_{iteration}: {e}")
+        exit()
+    except json.JSONDecodeError as e:
+        print(f"Failed to decode JSON from ComfyUI for {output_prefix}_{iteration}: {e}")
+        exit()
     except Exception as e:
         print(f"ComfyUI image generation failed for {output_prefix}_{iteration}: {e}")
-        return None
+        exit()
+    finally:
+        if 'ws' in locals() and ws.connected:
+            ws.close()
+            print("WebSocket closed in finally block.")
 
 
 def generate_comfyui_video_clip(workflow_api_json_path, image_paths, output_video_name, scene_index, clip_index):
