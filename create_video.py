@@ -32,3 +32,36 @@ def create_frames(scenes_data, prompts_first):
     with open(updated_parsed_script_path, "w", encoding="utf-8") as f:
         json.dump(scenes_data, f, indent=4)
     print(f"Scene data with storyboard paths saved to {updated_parsed_script_path}")
+
+def create_video(scenes_data):
+    # --- 5. Video Clips (LTX-Video via ComfyUI) ---
+    print_stage("5. Generating Video Clips...")
+    # This requires a ComfyUI LTX-Video workflow, e.g., image-to-video.
+    # Assume 'comfyui_workflows/ltx_img2vid_api.json'
+    comfy_video_workflow_path = Path("comfyui_workflows/ltx_img2vid_api.json") # Relative
+
+    if not comfy_video_workflow_path.exists():
+        print(f"ComfyUI LTX-Video workflow not found at {comfy_video_workflow_path}. Skipping video clip generation.")
+    else:
+        generated_video_clip_paths = []
+        for i, scene in enumerate(scenes_data):
+            print(f"\nGenerating clip {i+1}: {scene['heading']}")
+            if scene.get("storyboard_first"):
+                # LTX-Video often works best with one strong starting image.
+                # You could also feed it storyboard_first, middle, last if your workflow supports it (e.g. keyframes)
+                storyboard_frames_for_clip = [scene["storyboard_first"]]
+                if scene.get("storyboard_last") and scene["storyboard_first"] != scene["storyboard_last"]: # if distinct last frame
+                     # A more complex workflow might use first and last for interpolation
+                     pass # For simple img2vid, first frame is often enough to kickstart
+
+                clip_name = f"scene_{i+1}_clip.mp4"
+                video_path = generate_comfyui_video_clip(comfy_video_workflow_path, storyboard_frames_for_clip, clip_name, i+1, 0)
+                if video_path:
+                    generated_video_clip_paths.append(video_path)
+                    scene["video_clip_path"] = video_path # Store for assembly
+            else:
+                print(f"Skipping video clip for Scene {i+1} due to missing storyboard.")
+        
+        with open(SCRIPTS_DIR / "06_scenes_with_videos.json", "w", encoding="utf-8") as f:
+            json.dump(scenes_data, f, indent=4)
+        print(f"Scene data with video clip paths saved.")

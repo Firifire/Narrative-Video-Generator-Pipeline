@@ -2,6 +2,15 @@ from config import *
 import os
 import json
 import subprocess
+import requests
+import websocket
+import uuid
+import json
+import time
+import os
+import shutil
+from pathlib import Path
+import urllib.parse
 
 def llm_generate(prompt, system_prompt="You are a helpful AI assistant.", temperature=0.7, max_tokens=2048):
     """Generates text using the LLM via LM Studio's API."""
@@ -24,26 +33,6 @@ def llm_generate(prompt, system_prompt="You are a helpful AI assistant.", temper
         print(f"LLM generation failed: {e}")
         return None
 
-import requests
-import websocket # type: ignore
-import uuid
-import json
-import time
-import os
-import shutil # Retained for potential use if saving directly from a shared volume, but direct download is preferred.
-from pathlib import Path # Assuming Path is used for STORYBOARD_DIR
-import urllib.parse
-
-# These global variables are assumed to be defined elsewhere in your script,
-# as per your original code structure.
-# If they are dynamic, consider passing them as arguments or including them in input_prompts.
-# IMAGE_WIDTH = 512
-# IMAGE_HEIGHT = 512
-# IMAGE_STEPS = 20
-# IMAGE_CFG = 7.0
-# IMAGE_SAMPLER = "euler"
-# IMAGE_SCHEDULER = "normal"
-# STORYBOARD_DIR = Path("path/to/your/storyboard_dir") # Example: Initialize with your actual path
 
 def generate_comfyui_image(workflow_api_json_path, input_prompts, output_prefix, iteration):
     """
@@ -200,17 +189,12 @@ def generate_comfyui_video_clip(workflow_api_json_path, image_paths, output_vide
     Assumes workflow_api_json_path points to an LTX-Video API workflow.
     image_paths is a list of paths to storyboard frames for the clip.
     """
-    import requests
-    import uuid
-    import websocket
-    import urllib.parse
-    import time
 
     server_address = "127.0.0.1:8000"
     client_id = str(uuid.uuid4())
 
     try:
-        with open(workflow_api_json_path, 'r') as f:
+        with open(workflow_api_json_path, 'r', encoding='utf-8') as f:
             prompt_workflow = json.load(f)
 
         # --- Modify LTX-Video workflow ---
@@ -231,56 +215,118 @@ def generate_comfyui_video_clip(workflow_api_json_path, image_paths, output_vide
             if node_data.get("_meta", {}).get("title") == "CLIP Text Encode (Positive Prompt)": # Placeholder title
                 # You might get this from the scene_data or a generic prompt
                 prompt_workflow[node_id]["inputs"]["text"] = f"Animated scene based on the input image. Scene {scene_index}, Clip {clip_index}"
-            if node_data.get("_meta", {}).get("title") == "🅛🅣🅧 LTXV Base Sampler": # Placeholder title
+            if node_data.get("_meta", {}).get("title") == "LTXV Base Sampler": # Placeholder title
                 prompt_workflow[node_id]["inputs"]["num_frames"] = VIDEO_CLIP_MAX_FRAMES
                 # prompt_workflow[node_id]["inputs"]["fps"] = VIDEO_CLIP_FPS
             # For workflows using multiple guiding images (first, middle, last):
             # You would copy these to COMFYUI_INPUT_DIR and update respective "Load Image" nodes.
 
-        ws = websocket.WebSocket()
-        ws.connect(f"ws://{server_address}/ws?clientId={client_id}")
-        payload = {"prompt": prompt_workflow, "client_id": client_id}
-        ws.send(json.dumps(payload))
+        http_server_address = f"http://{server_address}"
+        prompt_payload = {"prompt": prompt_workflow, "client_id": client_id}
+        
         print(f"Sent LTX-Video generation request to ComfyUI for {output_video_name}")
+        response = requests.post(f"{http_server_address}/prompt", json=prompt_payload)
+        response.raise_for_status()
+        prompt_response_data = response.json()
 
-        output_filename = None
+        if "error" in prompt_response_data:
+            node_errors = prompt_response_data.get("node_errors", {})
+            error_messages = [f"Node {ne_id}: {ne_details.get('errors', [{}]).get('message', 'Unknown error')}" for ne_id, ne_details in node_errors.items()]
+            print(f"ComfyUI error when queueing prompt: {prompt_response_data['error']}. Details: {'; '.join(error_messages)}")
+            return None
+        
+        prompt_id = prompt_response_data.get("prompt_id")
+        if not prompt_id:
+            print(f"Failed to get prompt_id from ComfyUI for {output_video_name}. Response: {prompt_response_data}")
+            return None
+        
+        print(f"Prompt queued successfully. Prompt ID: {prompt_id}")
+
+        # Step 2: Connect to WebSocket for status updates [1, 2]
+        ws_server_address = f"ws://{server_address}/ws?clientId={client_id}"
+        ws = websocket.WebSocket()
+        ws.connect(ws_server_address)
+        print(f"WebSocket connected for {output_video_name}")
+
+        video_downloaded = False
+        output_video_path = None
+
         while True:
             out = ws.recv()
             if isinstance(out, str):
                 message = json.loads(out)
-                if message['type'] == 'executed':
-                    # Check for output from a "Save Video" or "Video Combine" node
-                    # This assumes the node's output data contains filename info.
-                    # Example: if message['data']['output'].get('videos'):
-                    # output_filename = message['data']['output']['videos'][0]['filename']
-                    # break
-                    # For now, we rely on finding the latest video in output dir as a fallback
-                    if message['data']['node_id'] in prompt_workflow: # A heuristic, find your save node ID
-                        time.sleep(5) # Give more time for video saving
-                        break
-                elif message['type'] == 'executing' and message['data']['node'] is None:
-                    break # Execution finished
-            else:
-                pass # Binary data
-        ws.close()
+                # print(f"WS Message: {message}") # For debugging
+                if message.get("type") == "executing":
+                    data = message.get("data", {})
+                    if data.get("node") is None and data.get("prompt_id") == prompt_id:
+                        print(f"Execution started for prompt_id: {prompt_id}")
+                
+                elif message.get("type") == "executed" and message.get("data", {}).get("prompt_id") == prompt_id:
+                    data = message.get("data", {})
+                    outputs = data.get("output", {})
+                    if not outputs:
+                        continue
+                    print(f"Execution finished for prompt_id: {prompt_id}. Outputs received.")
+                    
+                    # Step 3: Retrieve video(s) from outputs [1, 2]
+                    for node_id_output, node_output_data in outputs.items():
+                        if "gifs" in node_id_output:
+                            for video_data in node_output_data:
+                                filename = video_data.get("filename")
+                                subfolder = video_data.get("subfolder", "")
+                                img_type = video_data.get("type", "output")
 
-        # Find the generated video (heuristic)
-        generated_files = sorted(COMFYUI_OUTPUT_DIR.glob(f"*.mp4"), key=os.path.getmtime, reverse=True) # Adjust extension if different
-        if generated_files:
-            latest_file = generated_files[0]
-            output_path = VIDEO_CLIPS_DIR / output_video_name
-            shutil.copy(latest_file, output_path)
-            # Clean up the ComfyUI output dir to avoid picking the same file next time
-            # latest_file.unlink() # Be careful with this in a real setup
-            print(f"Video clip saved to {output_path}")
-            return str(output_path)
-        else:
-            print(f"Could not find generated video {output_video_name} in {COMFYUI_OUTPUT_DIR}")
-            return None
+                                if not filename:
+                                    continue
 
+                                # Download the video using /view endpoint [1, 2]
+                                view_url = f"{http_server_address}/view?filename={urllib.parse.quote(filename)}&subfolder={urllib.parse.quote(subfolder)}&type={img_type}"
+                                print(f"Downloading video: {filename} from {view_url}")
+                                
+                                img_response = requests.get(view_url)
+                                img_response.raise_for_status()
+
+                                # Ensure STORYBOARD_DIR exists (assuming it's a Path object)
+                                if not STORYBOARD_DIR.exists():
+                                    STORYBOARD_DIR.mkdir(parents=True, exist_ok=True)
+                                
+                                output_path_obj = STORYBOARD_DIR / f"{output_video_name}.mp4"
+                                with open(output_path_obj, 'wb') as f_img:
+                                    f_img.write(img_response.content)
+                                
+                                print(f"video saved to {output_path_obj}")
+                                output_video_path = str(output_path_obj)
+                                video_downloaded = True
+                                break # Downloaded one video, exit loop
+                        if video_downloaded:
+                            break
+                    ws.close()
+                    return output_video_path # Return path of the first successfully downloaded image
+
+                elif message.get("type") == "execution_error" and message.get("data", {}).get("prompt_id") == prompt_id:
+                    error_data = message.get("data", {})
+                    print(f"Execution error for prompt_id {prompt_id}: {error_data}")
+                    ws.close()
+                    exit()
+            
+    except requests.exceptions.RequestException as e:
+        print(f"ComfyUI HTTP request failed for {output_video_name}: {e}")
+        print(f"Response: {response.text if 'response' in locals() else 'No response'}")
+        exit()
+    except websocket.WebSocketException as e:
+        print(f"ComfyUI WebSocket communication failed for {output_video_name}: {e}")
+        exit()
+    except json.JSONDecodeError as e:
+        print(f"Failed to decode JSON from ComfyUI for {output_video_name}: {e}")
+        exit()
     except Exception as e:
         print(f"ComfyUI LTX-Video generation failed for {output_video_name}: {e}")
-        return None
+        exit()
+    finally:
+        if 'ws' in locals() and ws.connected:
+            ws.close()
+            print("WebSocket closed in finally block.")
+
 
 def generate_tts_audio(text, output_filename):
     """Generates audio from text using Piper TTS."""
