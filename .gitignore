@@ -1,5 +1,10 @@
+.venv/
 venv/
+tools/
+samples/
+YT/
 __pycache__/
+.vscode/
 *.txt
 *.json
 *.png

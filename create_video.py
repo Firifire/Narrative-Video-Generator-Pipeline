@@ -2,8 +2,32 @@ import re
 from config import *
 from generate import *
 
+# --- 3. Narration ---
+def create_voice(project):
+    i = 0
+    if project.resume:
+        narration_files = list(project.directories["narration"].glob("*.*"))
+        if narration_files:
+            i = len(narration_files)
+            if i != 0:
+                print(f"Resuming narration Synthesizing at index {i}.")
+            elif i == len(project.episode.narrations):
+                print("All narrations already synthesized. Skipping.")
+                return
+
+    print_stage("3. Synthesizing Narration...")
+    
+    for i in range(i, len(project.episode.narrations)):
+        output_file = generate_voice(project, project.episode.narrations[i])
+        output_path = project.directories["narration"] / (f"{i:03d}" + output_file.suffix)
+        if output_file:
+            output_file.rename(output_path)
+
+
+    
+
+# --- 4. Storyboard Images ---
 def create_frames(scenes_data, prompts_first):
-    # --- 4. Storyboard Images ---
     print_stage("4.5 Generating Storyboard Images...")
     # This requires a ComfyUI workflow JSON that takes prompts and generates images.
     # Let's assume 'comfyui_workflows/yt_txt3img.json' exists.
@@ -33,8 +57,9 @@ def create_frames(scenes_data, prompts_first):
         json.dump(scenes_data, f, indent=4)
     print(f"Scene data with storyboard paths saved to {updated_parsed_script_path}")
 
+
+# --- 5. Video Clips (LTX-Video via ComfyUI) ---
 def create_video(scenes_data):
-    # --- 5. Video Clips (LTX-Video via ComfyUI) ---
     print_stage("5. Generating Video Clips...")
     # This requires a ComfyUI LTX-Video workflow, e.g., image-to-video.
     # Assume 'comfyui_workflows/ltx_img2vid_api.json'

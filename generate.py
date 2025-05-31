@@ -32,6 +32,27 @@ def llm_generate(prompt, system_prompt="You are a helpful AI assistant.", temper
     except requests.exceptions.RequestException as e:
         print(f"LLM generation failed: {e}")
         return None
+    
+
+
+from kokoro import KPipeline
+import soundfile as sf    
+vPipeline = KPipeline(lang_code=KOKORO_LANG)
+def generate_voice(project, text):
+    """Generates audio files for narration using Kokoro TTS."""
+
+    clean_workspace(project)
+
+    generator = vPipeline(text, voice=KOKORO_VOICE_NAME)
+
+    audio_files = []
+    for i, (gs, ps, audio) in enumerate(generator):
+        output_path = project.directories["workspace"] / f"narration_{i:03d}.wav"
+        sf.write(output_path, audio, 24000)
+        audio_files.append(Path(output_path))
+
+    return merge_audio_files(audio_files)
+
 
 
 def generate_comfyui_image(workflow_api_json_path, input_prompts, output_prefix, iteration):
