@@ -73,5 +73,7 @@ class Episode:
         self.narrations = []
         self.nar_audio = []
 
-        self.img_prompts = []
+        self.img_prompts = []  # {"image": "prompt", "video": "prompt", "duration": "Animation Duration", "group": "Narrtion Group"}
+        self.images = []
+        self.video_clips = []
 

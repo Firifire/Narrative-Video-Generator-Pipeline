@@ -17,12 +17,12 @@ def main():
     create_script(project)
     create_voice(project)
     create_img_prompts(project)
-    exit() 
 
     subprocess.run(LLM_UNLOAD_CMD)
 
-    create_frames(scenes_data, prompts_first)
-    create_video(scenes_data)
+    create_frames(project)
+    exit() 
+    create_video(project)
 
 
 if __name__ == "__main__":

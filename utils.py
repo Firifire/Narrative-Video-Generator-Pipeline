@@ -3,6 +3,8 @@ import shutil
 from pathlib import Path
 from pydub import AudioSegment
 
+DEBUG = False
+
 def check_required_workflows(required_workflows):
     """Check if all required workflows exist."""
     for wf_path_str in required_workflows:
@@ -22,7 +24,7 @@ def parse_args():
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('--new', type=str, metavar='PROJECT_NAME', help='Start a new project with the given name')
     group.add_argument('--resume', type=str, metavar='PROJECT_NAME', help='Resume an existing project by name')
-    group.add_argument('--create', action='store_true', help='Create something (no project name required)')
+    group.add_argument('--create', action='store_true', help='Create a New Channel')
 
     return parser.parse_args()
 
@@ -59,3 +61,8 @@ def merge_audio_files(audio_files):
     combined.export(output_path, format=output_path.suffix[1:]) 
 
     return output_path
+
+def debug_print(*args, **kwargs):
+    """Print debug information if DEBUG is enabled."""
+    if DEBUG:
+        print(*args, **kwargs)

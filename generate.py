@@ -54,29 +54,25 @@ def generate_voice(project, text):
     return merge_audio_files(audio_files)
 
 
-
-def generate_comfyui_image(workflow_api_json_path, input_prompts, output_prefix, iteration):
+def generate_comfyui_image(project, input_prompts, output_prefix):
     """
     Triggers a ComfyUI workflow to generate an image and downloads it.
-    Assumes workflow_api_json_path is a ComfyUI API format JSON.
+    Assumes TXT2IMG_WORKFLOW is a ComfyUI API format JSON.
     Input_prompts is a dictionary to update specific nodes in the workflow.
     """
-    server_address = "127.0.0.1:8000" # As specified in your initial script
+    COMFYUI_SERVER_URL = "127.0.0.1:8000" 
     client_id = str(uuid.uuid4())
 
     try:
-        with open(workflow_api_json_path, 'r') as f:
+        with open(TXT2IMG_WORKFLOW, 'r') as f:
             prompt_workflow = json.load(f)
 
-        # Modify the workflow with new prompts and parameters [1, 3]
-        # This section is largely from your original script.
-        # Ensure node titles like "Positive Prompt", "KSampler", etc., match your workflow.
         for node_id, node_data in prompt_workflow.items():
             meta_title = node_data.get("_meta", {}).get("title")
             if meta_title == "CLIP Text Encode (Positive Prompt)":
-                prompt_workflow[node_id]["inputs"]["text"] = input_prompts.get("positive_prompt", "")
-            elif meta_title == "Negative Prompt":
-                prompt_workflow[node_id]["inputs"]["text"] = input_prompts.get("negative_prompt", "ugly, bad anatomy")
+                prompt_workflow[node_id]["inputs"]["text"] = input_prompts["image"]
+            # elif meta_title == "Negative Prompt":
+            #     prompt_workflow[node_id]["inputs"]["text"] = input_prompts.get("negative_prompt", "ugly, bad anatomy")
             # elif meta_title == "Empty Latent Image": # Common for image size
             #     # Assuming IMAGE_WIDTH and IMAGE_HEIGHT are globally defined or passed via input_prompts
             #     if "IMAGE_WIDTH" in globals() and "IMAGE_HEIGHT" in globals():
@@ -95,10 +91,10 @@ def generate_comfyui_image(workflow_api_json_path, input_prompts, output_prefix,
                 prompt_workflow[node_id]["inputs"]["seed"] = input_prompts.get("seed", int(time.time())) # Use provided seed or a new one
 
         # Step 1: Queue the prompt using HTTP POST to /prompt [1, 2]
-        http_server_address = f"http://{server_address}"
+        http_server_address = f"http://{COMFYUI_SERVER_URL}"
         prompt_payload = {"prompt": prompt_workflow, "client_id": client_id}
         
-        print(f"Queueing prompt for {output_prefix}_{iteration} with client_id: {client_id}")
+        debug_print(f"Queueing prompt for {output_prefix} with client_id: {client_id}")
         response = requests.post(f"{http_server_address}/prompt", json=prompt_payload)
         response.raise_for_status()
         prompt_response_data = response.json()
@@ -111,16 +107,16 @@ def generate_comfyui_image(workflow_api_json_path, input_prompts, output_prefix,
             
         prompt_id = prompt_response_data.get("prompt_id")
         if not prompt_id:
-            print(f"Failed to get prompt_id from ComfyUI for {output_prefix}_{iteration}. Response: {prompt_response_data}")
+            print(f"Failed to get prompt_id from ComfyUI for {output_prefix}. Response: {prompt_response_data}")
             return None
         
-        print(f"Prompt queued successfully. Prompt ID: {prompt_id}")
+        debug_print(f"Prompt queued successfully. Prompt ID: {prompt_id}")
 
         # Step 2: Connect to WebSocket for status updates [1, 2]
-        ws_server_address = f"ws://{server_address}/ws?clientId={client_id}"
+        ws_server_address = f"ws://{COMFYUI_SERVER_URL}/ws?clientId={client_id}"
         ws = websocket.WebSocket()
         ws.connect(ws_server_address)
-        print(f"WebSocket connected for {output_prefix}_{iteration}")
+        print(f"WebSocket connected for {output_prefix}")
 
         image_downloaded = False
         output_image_path = None
@@ -160,15 +156,12 @@ def generate_comfyui_image(workflow_api_json_path, input_prompts, output_prefix,
                                 img_response = requests.get(view_url)
                                 img_response.raise_for_status()
 
-                                # Ensure STORYBOARD_DIR exists (assuming it's a Path object)
-                                if not STORYBOARD_DIR.exists():
-                                    STORYBOARD_DIR.mkdir(parents=True, exist_ok=True)
                                 
-                                output_path_obj = STORYBOARD_DIR / f"{output_prefix}_{iteration}.png"
+                                output_path_obj = project.directories["storyboard"] / f"{output_prefix}.png"
                                 with open(output_path_obj, 'wb') as f_img:
                                     f_img.write(img_response.content)
                                 
-                                print(f"Image saved to {output_path_obj}")
+                                debug_print(f"Image saved to {output_path_obj}")
                                 output_image_path = str(output_path_obj)
                                 image_downloaded = True
                                 break # Downloaded one image, exit loop
@@ -182,21 +175,19 @@ def generate_comfyui_image(workflow_api_json_path, input_prompts, output_prefix,
                     print(f"Execution error for prompt_id {prompt_id}: {error_data}")
                     ws.close()
                     exit()
-            # Binary messages are usually previews, not handled in this simplified version
-            # focused on final output via /view like the original script's intent.
 
     except requests.exceptions.RequestException as e:
-        print(f"ComfyUI HTTP request failed for {output_prefix}_{iteration}: {e}")
+        print(f"ComfyUI HTTP request failed for {output_prefix}: {e}")
         print(f"Response: {response.text if 'response' in locals() else 'No response'}")
         exit()
     except websocket.WebSocketException as e:
-        print(f"ComfyUI WebSocket communication failed for {output_prefix}_{iteration}: {e}")
+        print(f"ComfyUI WebSocket communication failed for {output_prefix}: {e}")
         exit()
     except json.JSONDecodeError as e:
-        print(f"Failed to decode JSON from ComfyUI for {output_prefix}_{iteration}: {e}")
+        print(f"Failed to decode JSON from ComfyUI for {output_prefix}: {e}")
         exit()
     except Exception as e:
-        print(f"ComfyUI image generation failed for {output_prefix}_{iteration}: {e}")
+        print(f"ComfyUI image generation failed for {output_prefix}: {e}")
         exit()
     finally:
         if 'ws' in locals() and ws.connected:
@@ -204,10 +195,10 @@ def generate_comfyui_image(workflow_api_json_path, input_prompts, output_prefix,
             print("WebSocket closed in finally block.")
 
 
-def generate_comfyui_video_clip(workflow_api_json_path, image_paths, output_video_name, scene_index, clip_index):
+def generate_comfyui_video_clip(IMG2VID_WORKFLOW, image_paths, output_video_name, scene_index, clip_index):
     """
     Triggers a ComfyUI LTX-Video workflow.
-    Assumes workflow_api_json_path points to an LTX-Video API workflow.
+    Assumes IMG2VID_WORKFLOW points to an LTX-Video API workflow.
     image_paths is a list of paths to storyboard frames for the clip.
     """
 
@@ -215,7 +206,7 @@ def generate_comfyui_video_clip(workflow_api_json_path, image_paths, output_vide
     client_id = str(uuid.uuid4())
 
     try:
-        with open(workflow_api_json_path, 'r', encoding='utf-8') as f:
+        with open(IMG2VID_WORKFLOW, 'r', encoding='utf-8') as f:
             prompt_workflow = json.load(f)
 
         # --- Modify LTX-Video workflow ---
@@ -267,7 +258,7 @@ def generate_comfyui_video_clip(workflow_api_json_path, image_paths, output_vide
         ws_server_address = f"ws://{server_address}/ws?clientId={client_id}"
         ws = websocket.WebSocket()
         ws.connect(ws_server_address)
-        print(f"WebSocket connected for {output_video_name}")
+        debug_print(f"WebSocket connected for {output_video_name}")
 
         video_downloaded = False
         output_video_path = None
