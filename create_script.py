@@ -1,4 +1,6 @@
 import re
+from pydub.utils import mediainfo
+from tqdm import tqdm
 from project import *
 from generate import *
 
@@ -119,26 +121,97 @@ def create_script(project):
             f.write(narration + "\n\n")
 
 
-def create_img_prompts(scenes_data):
-    # --- 4. Storyboard Images ---
+# --- 4. Storyboard Images ---
+def create_img_prompts(project):
+    i = 0
+    if project.resume and (project.directories["scripts"] / "img_prompts.json").exists():
+        with open(project.directories["scripts"] / "img_prompts.json", "r", encoding="utf-8") as f:
+            existing_prompts = json.load(f)
+            project.episode.img_prompts = existing_prompts
+            i = existing_prompts[-1]["group"] + 1 if existing_prompts else 0
+        if i >= len(project.episode.narrations):
+            print("All image prompts already generated. Skipping.")
+            return
+        print(f"Resuming image prompt generation at index {i}.")
+        
+
     print_stage("3.0 Generating Storyboard Images Prompts...")
 
-    prompts_first = []
+    for i in tqdm(range(i, len(project.episode.narrations)), desc="Generating prompts", unit="narration"):
+        #Get the corresponding Audio and extract the duration
+        real_duration = float(mediainfo(project.episode.nar_audio[i])['duration'])
+        duration_s = int(real_duration)
 
-    for i, scene in enumerate(scenes_data):
-        print(f"\nGenerating prompt {i+1}: {scene['heading']}")
-        
         # Create more descriptive prompt for image generation from visual description
-        image_gen_prompt_enhancement = f"Based on the scene '{scene['heading']}' and visual description '{scene['visual_description']}', generate a detailed image prompt for a cinematic, high-quality visual. Focus on key elements, atmosphere, and art style (e.g., photorealistic, epic, mysterious, ancient)."
-        detailed_image_prompt = llm_generate(image_gen_prompt_enhancement, system_prompt="You are an AI assistant that creates vivid image generation prompts from scene descriptions.", temperature=0.5)
+        system_prompt = "You are an AI assistant that creates vivid image generation prompts from the narration that will be used for creating a youtube video."
+        image_gen_prompt = f"Decide on the number of short animated scenes for the narration: '{project.episode.narrations[i]}'\n" \
+        "The sum of duration of all scenes should not exceed {duration_s} seconds.\n" \
+        "For each scene, create a detailed prompt for image generation, video generation and their respective timing" \
+        "Format each output as.\n" \
+        "[Image Prompt 1: detailed Prompt]\n" \
+        "[Video Prompt 1: detailed Prompt]\n" \
+        "[Duration 1: Scene Timing in seconds]"
+
+        detailed_image_prompt = llm_generate(image_gen_prompt, system_prompt=system_prompt, temperature=0.5)
 
         if not detailed_image_prompt:
-            detailed_image_prompt = scene['visual_description'] # Fallback
+            print("Failed to generate Prompts. Exiting.")
+            exit()
 
-        # Generate first frame
-        prompts_first.append({
-            "positive_prompt": f"{detailed_image_prompt}, first frame, establishing shot. cinematic lighting.",
-            "negative_prompt": "text, watermark, ugly, deformed, blur, low quality",
-            "seed": (i + 1) * 1000 # Consistent seed per scene start
-        })
-    return prompts_first
+        # Extract each image and video prompts
+        j = 1
+        
+        prompts = []
+        image_prompt = video_prompt = duration = None
+        for line in detailed_image_prompt.split('\n'):
+            if extract_result(line, "Image Prompt " + str(j)):
+                image_prompt = extract_result(line, "Image Prompt " + str(j))
+            if extract_result(line, "Video Prompt " + str(j)):
+                video_prompt = extract_result(line, "Video Prompt " + str(j))
+            if extract_result(line, "Duration " + str(j)):
+                duration = extract_result(line, "Duration " + str(j))
+
+            if image_prompt and video_prompt and duration:
+                prompts.append({
+                    "image": image_prompt.strip(),
+                    "video": video_prompt.strip(),
+                    "duration": float(re.search(r'\d+(\.\d+)?', duration.strip()).group()),
+                    "group": i
+                })
+                image_prompt = video_prompt = duration = None
+                j += 1
+
+        # Confirm each prompt has image, video, and duration
+        if not all("image" in prompt and "video" in prompt and "duration" in prompt for prompt in prompts):
+            print("Some prompts are missing image, video, or duration information. Exiting.")
+            exit()
+
+        # Adjust duration to ensure total time is exactly the same as the narration duration
+        total_duration = sum(prompt["duration"] for prompt in prompts)
+        for prompt in prompts:
+            prompt["duration"] = prompt["duration"] * (real_duration / total_duration)
+
+        # Save prompts to the img_prompts
+        project.episode.img_prompts.extend(prompts)
+
+        # Save prompts to json
+        img_prompts_path = project.directories["scripts"] / "img_prompts.json"
+        if img_prompts_path.exists():
+            with open(img_prompts_path, "r", encoding="utf-8") as f:
+                existing_prompts = json.load(f)
+            existing_prompts += prompts
+        else:
+            existing_prompts = prompts
+
+        with open(img_prompts_path, "w", encoding="utf-8") as f:
+            json.dump(existing_prompts, f, indent=4)
+
+
+
+
+
+
+
+        
+
+

@@ -71,4 +71,7 @@ class Episode:
         self.name = ""
         self.concept = ""
         self.narrations = []
+        self.nar_audio = []
+
+        self.img_prompts = []
 

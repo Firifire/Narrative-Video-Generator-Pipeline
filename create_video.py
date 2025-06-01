@@ -1,4 +1,5 @@
 import re
+from tqdm import tqdm
 from config import *
 from generate import *
 
@@ -8,20 +9,22 @@ def create_voice(project):
     if project.resume:
         narration_files = list(project.directories["narration"].glob("*.*"))
         if narration_files:
+            narration_files.sort()
+            for file in narration_files:
+                project.episode.nar_audio.append(file)
             i = len(narration_files)
-            if i != 0:
-                print(f"Resuming narration Synthesizing at index {i}.")
-            elif i == len(project.episode.narrations):
+            if i == len(project.episode.narrations):
                 print("All narrations already synthesized. Skipping.")
                 return
+            print(f"Resuming narration Synthesizing at index {i}.")
 
     print_stage("3. Synthesizing Narration...")
     
-    for i in range(i, len(project.episode.narrations)):
+    for i in tqdm(range(i, len(project.episode.narrations)), desc="Generating prompts", unit="narration"):
         output_file = generate_voice(project, project.episode.narrations[i])
         output_path = project.directories["narration"] / (f"{i:03d}" + output_file.suffix)
-        if output_file:
-            output_file.rename(output_path)
+        output_file.rename(output_path)
+        project.episode.nar_audio.append(output_path)
 
 
     

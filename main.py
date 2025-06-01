@@ -6,6 +6,8 @@ from create_script import *
 from create_video import *
 
 def main():
+    print_stage("Initializing YouTube Video Project...")
+
     project = Project(base="YT", args=parse_args())
 
     create_channel(project)
@@ -14,9 +16,8 @@ def main():
     create_title(project) 
     create_script(project)
     create_voice(project)
-    exit() 
-
     create_img_prompts(project)
+    exit() 
 
     subprocess.run(LLM_UNLOAD_CMD)
 

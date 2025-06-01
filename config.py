@@ -42,9 +42,6 @@ KOKORO_VOICE_NAME = "af_jessica"
 TXT2IMG_WORKFLOW = Path("comfyui_workflows/yt_txt3img.json") # Path to your ComfyUI text-to-image workflow
 IMG2VID_WORKFLOW = Path("comfyui_workflows/ltx_img2vid_api.json") # Path to your ComfyUI image-to-video workflow
 
-# SFX Generation (AudioLDM - command line assumed)
-AUDIOLDM_SCRIPT_PATH = "audioldm" # Assuming audioldm is in PATH or provide full path
-
 # Image Generation Parameters
 IMAGE_WIDTH = 768
 IMAGE_HEIGHT = 512
