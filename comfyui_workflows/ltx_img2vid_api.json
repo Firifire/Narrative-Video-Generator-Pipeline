@@ -301,11 +301,6 @@
       "PowerLoraLoaderHeaderWidget": {
         "type": "PowerLoraLoaderHeaderWidget"
       },
-      "lora_1": {
-        "on": false,
-        "lora": "None",
-        "strength": 1
-      },
       "➕ Add Lora": "",
       "model": [
         "1900",
@@ -348,8 +343,9 @@
   "1930": {
     "inputs": {
       "model_type": "ltxv",
-      "rel_l1_thresh": 0.01,
-      "max_skip_steps": 3,
+      "rel_l1_thresh": 0.06,
+      "start_percent": 0,
+      "end_percent": 1,
       "model": [
         "1936",
         0
