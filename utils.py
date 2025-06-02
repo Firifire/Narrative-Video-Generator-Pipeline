@@ -46,16 +46,19 @@ def clean_workspace(project):
             elif item.is_dir():
                 shutil.rmtree(item)
 
-def merge_audio_files(audio_files):
+def merge_audio_files(audio_files, silence_duration=0):
     """Merge multiple audio files into one."""
     if not audio_files:
         return
     
     combined = AudioSegment.empty()
-    
-    for audio_file in audio_files:
+    silence = AudioSegment.silent(duration=silence_duration)
+
+    for i, audio_file in enumerate(audio_files):
         segment = AudioSegment.from_file(audio_file)
         combined += segment
+        if silence_duration > 0 and i < len(audio_files):
+            combined += silence
 
     output_path = audio_files[0].parent / ("merged_audio" + audio_files[0].suffix)
     combined.export(output_path, format=output_path.suffix[1:]) 

@@ -60,7 +60,6 @@ def generate_comfyui_image(project, input_prompts, output_prefix):
     Assumes TXT2IMG_WORKFLOW is a ComfyUI API format JSON.
     Input_prompts is a dictionary to update specific nodes in the workflow.
     """
-    COMFYUI_SERVER_URL = "127.0.0.1:8000" 
     client_id = str(uuid.uuid4())
 
     try:
@@ -102,13 +101,11 @@ def generate_comfyui_image(project, input_prompts, output_prefix):
         if "error" in prompt_response_data:
             node_errors = prompt_response_data.get("node_errors", {})
             error_messages = [f"Node {ne_id}: {ne_details.get('errors', [{}]).get('message', 'Unknown error')}" for ne_id, ne_details in node_errors.items()]
-            print(f"ComfyUI error when queueing prompt: {prompt_response_data['error']}. Details: {'; '.join(error_messages)}")
-            return None
+            exit(f"ComfyUI error when queueing prompt: {prompt_response_data['error']}. Details: {'; '.join(error_messages)}")
             
         prompt_id = prompt_response_data.get("prompt_id")
         if not prompt_id:
-            print(f"Failed to get prompt_id from ComfyUI for {output_prefix}. Response: {prompt_response_data}")
-            return None
+            exit(f"Failed to get prompt_id from ComfyUI for {output_prefix}. Response: {prompt_response_data}")
         
         debug_print(f"Prompt queued successfully. Prompt ID: {prompt_id}")
 
@@ -116,7 +113,7 @@ def generate_comfyui_image(project, input_prompts, output_prefix):
         ws_server_address = f"ws://{COMFYUI_SERVER_URL}/ws?clientId={client_id}"
         ws = websocket.WebSocket()
         ws.connect(ws_server_address)
-        print(f"WebSocket connected for {output_prefix}")
+        debug_print(f"WebSocket connected for {output_prefix}")
 
         image_downloaded = False
         output_image_path = None
@@ -129,14 +126,14 @@ def generate_comfyui_image(project, input_prompts, output_prefix):
                 if message.get("type") == "executing":
                     data = message.get("data", {})
                     if data.get("node") is None and data.get("prompt_id") == prompt_id:
-                        print(f"Execution started for prompt_id: {prompt_id}")
+                        debug_print(f"Execution started for prompt_id: {prompt_id}")
                 
                 elif message.get("type") == "executed" and message.get("data", {}).get("prompt_id") == prompt_id:
                     data = message.get("data", {})
                     outputs = data.get("output", {})
                     if not outputs:
                         continue
-                    print(f"Execution finished for prompt_id: {prompt_id}. Outputs received.")
+                    debug_print(f"Execution finished for prompt_id: {prompt_id}. Outputs received.")
                     
                     # Step 3: Retrieve image(s) from outputs [1, 2]
                     for node_id_output, node_output_data in outputs.items():
@@ -178,65 +175,59 @@ def generate_comfyui_image(project, input_prompts, output_prefix):
 
     except requests.exceptions.RequestException as e:
         print(f"ComfyUI HTTP request failed for {output_prefix}: {e}")
-        print(f"Response: {response.text if 'response' in locals() else 'No response'}")
-        exit()
+        exit(f"Response: {response.text if 'response' in locals() else 'No response'}")
     except websocket.WebSocketException as e:
-        print(f"ComfyUI WebSocket communication failed for {output_prefix}: {e}")
-        exit()
+        exit(f"ComfyUI WebSocket communication failed for {output_prefix}: {e}")
     except json.JSONDecodeError as e:
-        print(f"Failed to decode JSON from ComfyUI for {output_prefix}: {e}")
-        exit()
+        exit(f"Failed to decode JSON from ComfyUI for {output_prefix}: {e}")
     except Exception as e:
-        print(f"ComfyUI image generation failed for {output_prefix}: {e}")
-        exit()
+        exit(f"ComfyUI image generation failed for {output_prefix}: {e}")
     finally:
         if 'ws' in locals() and ws.connected:
             ws.close()
             print("WebSocket closed in finally block.")
 
 
-def generate_comfyui_video_clip(IMG2VID_WORKFLOW, image_paths, output_video_name, scene_index, clip_index):
+def generate_comfyui_video_clip(project, image_path, input_prompt, output_video_name):
     """
     Triggers a ComfyUI LTX-Video workflow.
     Assumes IMG2VID_WORKFLOW points to an LTX-Video API workflow.
     image_paths is a list of paths to storyboard frames for the clip.
     """
 
-    server_address = "127.0.0.1:8000"
     client_id = str(uuid.uuid4())
 
     try:
         with open(IMG2VID_WORKFLOW, 'r', encoding='utf-8') as f:
             prompt_workflow = json.load(f)
-
-        # --- Modify LTX-Video workflow ---
-        # This is HIGHLY dependent on your LTX-Video workflow structure in ComfyUI.
-        # You'll need to identify the node IDs for:
-        # 1. Loading the initial image (if image-to-video)
-        # 2. Setting the text prompt (if text-to-video or to guide image-to-video)
-        # 3. Setting number of frames, FPS
-        # 4. Save video node (to get the output filename)
-
-        # Example: Assuming first image is the main input
-        first_frame_path_comfy = str(Path(COMFYUI_INPUT_DIR) / Path(image_paths[0]).name)
-        shutil.copy(image_paths[0], first_frame_path_comfy) # Copy to ComfyUI input
+        
+        # Calculate the number of frames based FPS and input_prompt["duration"]
+        num_frames = int(input_prompt["duration"] * VIDEO_CLIP_FPS)
+        if num_frames > VIDEO_CLIP_MAX_FRAMES:
+            print(f"Warning: Duration {input_prompt['duration']} exceeds max frames {VIDEO_CLIP_MAX_FRAMES}. Clamping to max.")
+            num_frames = VIDEO_CLIP_MAX_FRAMES
+        # num_frame must multiple of 8 + 1
+        if (num_frames - 1) % 8 != 0:
+            num_frames = ((num_frames - 1) // 8 + 1) * 8 + 1
+            debug_print(f"Adjusted number of frames to {num_frames} to be multiple of 8 + 1.")
 
         for node_id, node_data in prompt_workflow.items():
-            if node_data.get("_meta", {}).get("title") == "Load Image": # Placeholder title
-                prompt_workflow[node_id]["inputs"]["image"] = Path(image_paths[0]).name
-            if node_data.get("_meta", {}).get("title") == "CLIP Text Encode (Positive Prompt)": # Placeholder title
-                # You might get this from the scene_data or a generic prompt
-                prompt_workflow[node_id]["inputs"]["text"] = f"Animated scene based on the input image. Scene {scene_index}, Clip {clip_index}"
-            if node_data.get("_meta", {}).get("title") == "LTXV Base Sampler": # Placeholder title
-                prompt_workflow[node_id]["inputs"]["num_frames"] = VIDEO_CLIP_MAX_FRAMES
-                # prompt_workflow[node_id]["inputs"]["fps"] = VIDEO_CLIP_FPS
-            # For workflows using multiple guiding images (first, middle, last):
-            # You would copy these to COMFYUI_INPUT_DIR and update respective "Load Image" nodes.
+            if node_data.get("_meta", {}).get("title") == "Load Image":
+                prompt_workflow[node_id]["inputs"]["image"] = str(image_path.resolve())
+            if node_data.get("_meta", {}).get("title") == "CLIP Text Encode (Positive Prompt)":
+                prompt_workflow[node_id]["inputs"]["text"] = input_prompt["video"]
+            if node_data.get("_meta", {}).get("title") == "LTXV Base Sampler":
+                prompt_workflow[node_id]["inputs"]["num_frames"] = num_frames
+            if node_data.get("_meta", {}).get("title") == "LTXVConditioning":
+                prompt_workflow[node_id]["inputs"]["frame_rate"] = VIDEO_CLIP_FPS
+            if node_data.get("_meta", {}).get("title") == "Video Combine":
+                prompt_workflow[node_id]["inputs"]["filename_prefix"] = output_video_name
+                prompt_workflow[node_id]["inputs"]["frame_rate"] = VIDEO_CLIP_FPS
 
-        http_server_address = f"http://{server_address}"
+        http_server_address = f"http://{COMFYUI_SERVER_URL}"
         prompt_payload = {"prompt": prompt_workflow, "client_id": client_id}
         
-        print(f"Sent LTX-Video generation request to ComfyUI for {output_video_name}")
+        debug_print(f"Sent LTX-Video generation request to ComfyUI for {output_video_name}")
         response = requests.post(f"{http_server_address}/prompt", json=prompt_payload)
         response.raise_for_status()
         prompt_response_data = response.json()
@@ -244,18 +235,16 @@ def generate_comfyui_video_clip(IMG2VID_WORKFLOW, image_paths, output_video_name
         if "error" in prompt_response_data:
             node_errors = prompt_response_data.get("node_errors", {})
             error_messages = [f"Node {ne_id}: {ne_details.get('errors', [{}]).get('message', 'Unknown error')}" for ne_id, ne_details in node_errors.items()]
-            print(f"ComfyUI error when queueing prompt: {prompt_response_data['error']}. Details: {'; '.join(error_messages)}")
-            return None
+            exit(f"ComfyUI error when queueing prompt: {prompt_response_data['error']}. Details: {'; '.join(error_messages)}")
         
         prompt_id = prompt_response_data.get("prompt_id")
         if not prompt_id:
-            print(f"Failed to get prompt_id from ComfyUI for {output_video_name}. Response: {prompt_response_data}")
-            return None
+            exit(f"Failed to get prompt_id from ComfyUI for {output_video_name}. Response: {prompt_response_data}")
         
-        print(f"Prompt queued successfully. Prompt ID: {prompt_id}")
+        debug_print(f"Prompt queued successfully. Prompt ID: {prompt_id}")
 
         # Step 2: Connect to WebSocket for status updates [1, 2]
-        ws_server_address = f"ws://{server_address}/ws?clientId={client_id}"
+        ws_server_address = f"ws://{COMFYUI_SERVER_URL}/ws?clientId={client_id}"
         ws = websocket.WebSocket()
         ws.connect(ws_server_address)
         debug_print(f"WebSocket connected for {output_video_name}")
@@ -271,14 +260,14 @@ def generate_comfyui_video_clip(IMG2VID_WORKFLOW, image_paths, output_video_name
                 if message.get("type") == "executing":
                     data = message.get("data", {})
                     if data.get("node") is None and data.get("prompt_id") == prompt_id:
-                        print(f"Execution started for prompt_id: {prompt_id}")
+                        debug_print(f"Execution started for prompt_id: {prompt_id}")
                 
                 elif message.get("type") == "executed" and message.get("data", {}).get("prompt_id") == prompt_id:
                     data = message.get("data", {})
                     outputs = data.get("output", {})
                     if not outputs:
                         continue
-                    print(f"Execution finished for prompt_id: {prompt_id}. Outputs received.")
+                    debug_print(f"Execution finished for prompt_id: {prompt_id}. Outputs received.")
                     
                     # Step 3: Retrieve video(s) from outputs [1, 2]
                     for node_id_output, node_output_data in outputs.items():
@@ -293,20 +282,16 @@ def generate_comfyui_video_clip(IMG2VID_WORKFLOW, image_paths, output_video_name
 
                                 # Download the video using /view endpoint [1, 2]
                                 view_url = f"{http_server_address}/view?filename={urllib.parse.quote(filename)}&subfolder={urllib.parse.quote(subfolder)}&type={img_type}"
-                                print(f"Downloading video: {filename} from {view_url}")
+                                debug_print(f"Downloading video: {filename} from {view_url}")
                                 
                                 img_response = requests.get(view_url)
                                 img_response.raise_for_status()
 
-                                # Ensure STORYBOARD_DIR exists (assuming it's a Path object)
-                                if not STORYBOARD_DIR.exists():
-                                    STORYBOARD_DIR.mkdir(parents=True, exist_ok=True)
-                                
-                                output_path_obj = STORYBOARD_DIR / f"{output_video_name}.mp4"
+                                output_path_obj = project.directories["video_clips"] / f"{output_video_name}.mp4"
                                 with open(output_path_obj, 'wb') as f_img:
                                     f_img.write(img_response.content)
                                 
-                                print(f"video saved to {output_path_obj}")
+                                debug_print(f"video saved to {output_path_obj}")
                                 output_video_path = str(output_path_obj)
                                 video_downloaded = True
                                 break # Downloaded one video, exit loop
@@ -323,43 +308,18 @@ def generate_comfyui_video_clip(IMG2VID_WORKFLOW, image_paths, output_video_name
             
     except requests.exceptions.RequestException as e:
         print(f"ComfyUI HTTP request failed for {output_video_name}: {e}")
-        print(f"Response: {response.text if 'response' in locals() else 'No response'}")
-        exit()
+        exit(f"Response: {response.text if 'response' in locals() else 'No response'}")
     except websocket.WebSocketException as e:
-        print(f"ComfyUI WebSocket communication failed for {output_video_name}: {e}")
-        exit()
+        exit(f"ComfyUI WebSocket communication failed for {output_video_name}: {e}")
     except json.JSONDecodeError as e:
-        print(f"Failed to decode JSON from ComfyUI for {output_video_name}: {e}")
-        exit()
+        exit(f"Failed to decode JSON from ComfyUI for {output_video_name}: {e}")
     except Exception as e:
-        print(f"ComfyUI LTX-Video generation failed for {output_video_name}: {e}")
-        exit()
+        exit(f"ComfyUI LTX-Video generation failed for {output_video_name}: {e}")
     finally:
         if 'ws' in locals() and ws.connected:
             ws.close()
             print("WebSocket closed in finally block.")
 
-
-def generate_tts_audio(text, output_filename):
-    """Generates audio from text using Piper TTS."""
-    output_path = NARRATION_DIR / output_filename
-    command = [
-        str(PIPER_EXE_PATH),
-        "--model", str(PIPER_VOICE_MODEL_PATH),
-        "--config", str(PIPER_VOICE_CONFIG_PATH),
-        "--output_file", str(output_path)
-    ]
-    try:
-        process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = process.communicate(input=text.encode('utf-8'))
-        if process.returncode != 0:
-            print(f"Piper TTS error: {stderr.decode()}")
-            return None
-        print(f"Narration audio saved to {output_path}")
-        return str(output_path)
-    except Exception as e:
-        print(f"Piper TTS failed: {e}")
-        return None
 
 def generate_sfx_audio(prompt, output_filename):
     """Generates SFX using AudioLDM."""

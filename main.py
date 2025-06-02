@@ -4,6 +4,7 @@ from project import *
 from generate import *
 from create_script import *
 from create_video import *
+from merge import *
 
 def main():
     print_stage("Initializing YouTube Video Project...")
@@ -21,8 +22,9 @@ def main():
     subprocess.run(LLM_UNLOAD_CMD)
 
     create_frames(project)
-    exit() 
     create_video(project)
+    combine(project)
+    exit()
 
 
 if __name__ == "__main__":

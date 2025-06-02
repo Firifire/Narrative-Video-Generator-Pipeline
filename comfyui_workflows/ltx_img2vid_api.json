@@ -208,8 +208,8 @@
   },
   "1875": {
     "inputs": {
-      "timestep": 0.05,
-      "scale": 0.025,
+      "timestep": 0.05000000000000001,
+      "scale": 0.025000000000000005,
       "seed": 44731965495089,
       "vae": [
         "1910",
@@ -343,7 +343,7 @@
   "1930": {
     "inputs": {
       "model_type": "ltxv",
-      "rel_l1_thresh": 0.06,
+      "rel_l1_thresh": 0.010000000000000002,
       "start_percent": 0,
       "end_percent": 1,
       "model": [

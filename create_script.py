@@ -146,7 +146,8 @@ def create_img_prompts(project):
         system_prompt = "You are an AI assistant that creates vivid image generation prompts from the narration that will be used for creating a youtube video."
         image_gen_prompt = f"Decide on the number of short animated scenes (1 to 3) for the narration: '{project.episode.narrations[i]}'\n" \
         "The sum of duration of all scenes should not exceed {duration_s} seconds.\n" \
-        "For each scene, create a detailed prompt for image generation, video generation and their respective timing" \
+        "For each scene, create a detailed prompt for image generation, video generation and their respective timing.\n" \
+        "Note: Each prompt info inside the brackets will be sent for AI generation. Do not include unrelated information like audio.\n" \
         "Format each output as.\n" \
         "[Image Prompt 1: detailed Prompt]\n" \
         "[Video Prompt 1: detailed Prompt]\n" \

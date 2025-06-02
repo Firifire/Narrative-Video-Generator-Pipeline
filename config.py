@@ -59,17 +59,13 @@ IMAGE_SCHEDULER = "karras"
 # ComfyUI Workflow
 IMG2VID_WORKFLOW = Path("comfyui_workflows/ltx_img2vid_api.json") # Path to your ComfyUI image-to-video workflow
 
-# Image Generation Parameters
+# Input Image Parameters
 IMAGE_WIDTH = 768
 IMAGE_HEIGHT = 512
-IMAGE_STEPS = 30
-IMAGE_CFG = 7
-IMAGE_SAMPLER = "dpmpp_2m_sde_gpu"
-IMAGE_SCHEDULER = "karras"
 
 # Video Generation (LTX-Video via ComfyUI) Parameters
-VIDEO_CLIP_FPS = 24
-VIDEO_CLIP_MAX_FRAMES = 121 # ~5 seconds at 24fps, LTX-Video sweet spot
+VIDEO_CLIP_FPS = 20
+VIDEO_CLIP_MAX_FRAMES = 257
 
 # TTS Configuration (Piper TTS assumed for simplicity)
 PIPER_EXE_PATH = Path.home() / "piper" / "piper" # Adjust to your Piper TTS executable
@@ -79,4 +75,4 @@ PIPER_VOICE_CONFIG_PATH = str(PIPER_VOICE_MODEL_PATH) + ".json"
 # Video Assembly Configuration
 FINAL_VIDEO_WIDTH = 1280
 FINAL_VIDEO_HEIGHT = 720
-FINAL_VIDEO_FPS = 24
+FINAL_VIDEO_FPS = 20
