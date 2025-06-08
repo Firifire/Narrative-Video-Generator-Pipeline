@@ -8,11 +8,11 @@ from utils import *
 
 # LLM Configuration (LM Studio)
 LM_STUDIO_SERVER_URL = "http://localhost:11434/v1" # Default LM Studio server
-LLM_MODEL_NAME = "qwen3:32b"
+LLM_MODEL_NAME = "qwen3:32b" 
 LLM_UNLOAD_CMD = ["ollama", "stop", LLM_MODEL_NAME]
 
 # ComfyUI Configuration
-COMFYUI_SERVER_URL = "127.0.0.1:8000"
+COMFYUI_SERVER_URL = "127.0.0.1:11432"
 
 FFMPEG_PATH = "ffmpeg" # Assuming ffmpeg is in PATH
 
