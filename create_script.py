@@ -148,6 +148,8 @@ def create_img_prompts(project):
         "The sum of duration of all scenes should not exceed {duration_s} seconds.\n" \
         "For each scene, create a detailed prompt for image generation, video generation and their respective timing.\n" \
         "Note: Each prompt info inside the brackets will be sent for AI generation. Do not include unrelated information like audio.\n" \
+        "Note: The generated Images and Videos can not handle displaying any Text.\n" \
+        "Note: The generation does not have access to previous image/video generation data or context.\n" \
         "Format each output as.\n" \
         "[Image Prompt 1: detailed Prompt]\n" \
         "[Video Prompt 1: detailed Prompt]\n" \
