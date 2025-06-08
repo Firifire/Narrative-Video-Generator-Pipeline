@@ -33,7 +33,7 @@ def create_channel(project):
         exit("Failed to extract channel name or niche from generated ideas. Exiting.")
     
     project_dir = project.base / project.project_name
-    project_dir.mkdir(exist_ok=True)
+    project_dir.mkdir(parents=True, exist_ok=True)
     with open(project_dir / "channel_info.txt", "w", encoding="utf-8") as f:
         f.write(project.project_name + "\n")
         f.write(project.niche + "\n")
