@@ -148,7 +148,7 @@ def generate_comfyui_image(project, input_prompts, output_prefix):
 
                                 # Download the image using /view endpoint [1, 2]
                                 view_url = f"{http_server_address}/view?filename={urllib.parse.quote(filename)}&subfolder={urllib.parse.quote(subfolder)}&type={img_type}"
-                                print(f"Downloading image: {filename} from {view_url}")
+                                debug_print(f"Downloading image: {filename} from {view_url}")
                                 
                                 img_response = requests.get(view_url)
                                 img_response.raise_for_status()

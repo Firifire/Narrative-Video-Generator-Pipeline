@@ -14,7 +14,7 @@ def main():
     create_channel(project)
     project.start()
 
-    create_title(project) 
+    create_title(project)
     create_script(project)
     create_voice(project)
     create_img_prompts(project)
