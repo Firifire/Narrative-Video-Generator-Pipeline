@@ -8,26 +8,13 @@ from utils import *
 
 # LLM Configuration (LM Studio)
 LM_STUDIO_SERVER_URL = "http://localhost:1234/v1" # Default LM Studio server
-LLM_MODEL_NAME = "gemma-3-12b-it-qat"
+LLM_MODEL_NAME = "qwen3-14b"
 LLM_UNLOAD_CMD = ["lms", "unload", LLM_MODEL_NAME]
 
 # ComfyUI Configuration
 COMFYUI_SERVER_URL = "127.0.0.1:8000"
 
-COMFYUI_BASE_PATH = Path("C:/Application/Apps") # Adjust if your ComfyUI is elsewhere
-COMFYUI_INPUT_DIR = COMFYUI_BASE_PATH / "ComfyUI" / "input"
-COMFYUI_OUTPUT_DIR = COMFYUI_BASE_PATH / "ComfyUI" / "output"
-COMFYUI_MODELS_CHECKPOINTS_DIR = COMFYUI_BASE_PATH / "ComfyUI" / "models" / "checkpoints"
-COMFYUI_MODELS_CONTROLNET_DIR = COMFYUI_BASE_PATH / "ComfyUI" / "models" / "controlnet"
-COMFYUI_MODELS_UPSCALERS_DIR = COMFYUI_BASE_PATH / "ComfyUI" / "models" / "upscale_models"
-COMFYUI_MODELS_VAE_DIR = COMFYUI_BASE_PATH / "ComfyUI" / "models" / "vae"
-COMFYUI_MODELS_LORAS_DIR = COMFYUI_BASE_PATH / "ComfyUI" / "models" / "loras"
-COMFYUI_MODELS_LTX_VIDEO_DIR = COMFYUI_BASE_PATH / "ComfyUI" / "models" / "checkpoints" # LTX models go here
-COMFYUI_MODELS_TEXT_ENCODERS_DIR = COMFYUI_BASE_PATH / "ComfyUI" / "models" / "text_encoders" # For LTX
-
-
 FFMPEG_PATH = "ffmpeg" # Assuming ffmpeg is in PATH
-
 
 ###################################################################
 # ===================== AUDIO CONFIGURATION ===================== #

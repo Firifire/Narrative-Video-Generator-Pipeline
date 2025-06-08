@@ -56,15 +56,6 @@ class Project:
         """Creates necessary project directories."""
         for dir_path in self.directories.values():
             dir_path.mkdir(parents=True, exist_ok=True)
-    
-        # ComfyUI input dir might be cleared or managed per run
-        if COMFYUI_INPUT_DIR.exists():
-            for item in COMFYUI_INPUT_DIR.iterdir():
-                if item.is_file():
-                    item.unlink()
-                else:
-                    shutil.rmtree(item)
-        COMFYUI_INPUT_DIR.mkdir(exist_ok=True) # Ensure it exists
 
 class Episode:
     def __init__(self):
