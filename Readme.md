@@ -20,8 +20,8 @@ This project introduces an automated pipeline for generating complete, narrated 
 Run the following Commands to download the project and install all the python dependencies.
 
 ```
-https://github.com/Firifire/Narrative-Video-Generator-Pipeline.git
-cd narrative-video-generator
+git clone https://github.com/Firifire/Narrative-Video-Generator-Pipeline.git
+cd Narrative-Video-Generator-Pipeline
 pip install -r requirements.txt
 ```
 
